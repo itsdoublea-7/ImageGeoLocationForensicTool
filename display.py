@@ -100,7 +100,7 @@ class FourFrameGUI:
         self.listbox.delete(0, tk.END)
         self.right_frame.delete_all_marker()
         self.right_frame.delete_all_path()
-        file_path = filedialog.askopenfilename(title="Load Session", filetypes=[("Session files", "*.session")])
+        file_path = filedialog.askopenfilename(title="Load Session", filetypes=[("Session files", "*.cmsf")])
         if file_path:
             with open(file_path, 'rb') as file:
                 session_data = pickle.load(file)
@@ -125,7 +125,7 @@ class FourFrameGUI:
             'folder_path': self.folder_path,
             'states': self.states
         }
-        file_path = filedialog.asksaveasfilename(defaultextension=".session", filetypes=[("Session files", "*.session")])
+        file_path = filedialog.asksaveasfilename(defaultextension=".cmsf", filetypes=[("Session files", "*.cmsf")])
         if file_path:
             with open(file_path, 'wb') as file:
                 pickle.dump(session_data, file)
