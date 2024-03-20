@@ -1,3 +1,5 @@
 pip install Pillow
 pip install tk
 pip install tkintermapview
+pip install geopy
+pip install tkcalendar
