@@ -1,6 +1,8 @@
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import os
+from datetime import datetime
+
 
 def dms_to_dd(degrees, minutes, seconds, direction):
     dd = float(degrees) + float(minutes)/60 + float(seconds)/(60*60)
@@ -49,21 +51,70 @@ def get_coordinates(image_path):
         print(f"Error processing {image_path}: {str(e)}")
         return None
 
+def get_date_taken(exif_data):
+    if not exif_data:
+        return None
+
+    for tag, value in exif_data.items():
+        tag_name = TAGS.get(tag, tag)
+        if tag_name == 'DateTimeOriginal':
+            try:
+                date_taken = datetime.strptime(value, '%Y:%m:%d %H:%M:%S')
+                return date_taken.date()
+            except ValueError:
+                pass
+
+    return None
+
 def get_coordinates_from_folder(folder_path):
     image_coordinates = {}
+    image_dates = {}
+
     for root, dirs, files in os.walk(folder_path):
         for file in files:
             if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 image_path = os.path.join(root, file)
+                image = Image.open(image_path)
+                exif_data = image._getexif()
                 coordinates = get_coordinates(image_path)
+                date_taken = get_date_taken(exif_data)
+                
                 if coordinates:
-                    image_coordinates[image_path] = coordinates
+                    image_coordinates[file] = coordinates
+                if date_taken:
+                    image_dates[file] = date_taken
 
-    return image_coordinates
+    return image_coordinates, image_dates
 
-# Example usage
-folder_path = "image"
-result = get_coordinates_from_folder(folder_path)
-print(result)
-for image_path, coordinates in result.items():
-    print(f"Image: {image_path}\nCoordinates: {coordinates}\n")
+def get_exif_data(image_path):
+    try:
+        image = Image.open(image_path)
+        exif_data = image._getexif()
+        if exif_data:
+            exif_dict = {}
+            for tag, value in exif_data.items():
+                if not isinstance(value, bytes):  # Exclude hex values
+                    tag_name = TAGS.get(tag, tag)
+                    exif_dict[tag_name] = value
+            return exif_dict
+        else:
+            return {}
+    except Exception as e:
+        print(f"Error processing {image_path}: {str(e)}")
+        return {}
+
+
+
+def get_exif_data_from_folder(folder_path):
+    image_exif_data = {}
+
+    for root, dirs, files in os.walk(folder_path):
+        for file in files:
+            if file.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                image_path = os.path.join(root, file)
+                exif_data = get_exif_data(image_path)
+                if exif_data:
+                    image_exif_data[file] = exif_data
+
+    return image_exif_data
+
