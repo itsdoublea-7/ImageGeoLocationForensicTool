@@ -7,6 +7,8 @@ from geopy.geocoders import Nominatim
 from gps import get_coordinates_from_folder, get_exif_data_from_folder
 from tkcalendar import DateEntry  
 import pickle
+import tkinter.ttk as ttk
+import matplotlib.pyplot as plt
 
 class FourFrameGUI:
     def __init__(self, root):
@@ -44,6 +46,7 @@ class FourFrameGUI:
         filtermenu = tk.Menu(menubar, tearoff=0)
         filtermenu.add_command(label="Filter using Date", command=self.filter_images)
         filtermenu.add_command(label="Filter by Location", command=self.location_filter)
+        filtermenu.add_command(label="Filter by GPS Tags", command=self.create_gps_filter_popup)  
         filtermenu.add_command(label="Clear Filter", command=self.clear_filter)
         menubar.add_cascade(label="Filter", menu=filtermenu)
 
@@ -53,7 +56,78 @@ class FourFrameGUI:
         map_style_menu.add_command(label="Google Satellite", command=lambda: self.set_map_style("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22))
         menubar.add_cascade(label="Map Style", menu=map_style_menu)
 
+        stats_menu = tk.Menu(menubar, tearoff=0)
+        stats_menu.add_command(label="State-wise Image Distribution", command=self.show_state_distribution)
+        stats_menu.add_command(label="Date Distribution Graph", command=self.show_date_distribution)
+        menubar.add_cascade(label="Statistics", menu=stats_menu)
+
         self.root.config(menu=menubar)
+
+    def show_state_distribution(self):
+        state_counts = {}
+        for state in self.states.values():
+            state_counts[state] = state_counts.get(state, 0) + 1
+        
+        state_dist_popup = tk.Toplevel(self.root)
+        state_dist_popup.title("State-wise Image Distribution")
+        
+        tree = ttk.Treeview(state_dist_popup)
+        tree["columns"] = ("State", "Image Count")
+        tree.heading("#0", text="Index")
+        tree.heading("State", text="State")
+        tree.heading("Image Count", text="Image Count")
+        
+        index = 1
+        for state, count in state_counts.items():
+            tree.insert("", index, text=index, values=(state, count))
+            index += 1
+        
+        tree.pack(expand=True, fill="both")
+
+    def show_date_distribution(self):
+        date_counts = {}
+        for date in self.dates.values():
+            date_str = date.strftime("%Y-%m-%d")
+            date_counts[date_str] = date_counts.get(date_str, 0) + 1
+        
+        dates = sorted(date_counts.keys())
+        counts = [date_counts[date] for date in dates]
+        
+        plt.figure(figsize=(8, 6))
+        plt.bar(dates, counts)
+        plt.title("Date Distribution Graph")
+        plt.xlabel("Date")
+        plt.ylabel("Image Count")
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+        plt.show()
+
+    def filter_images_with_gps(self):
+        filtered_images = [image for image, date in self.dates.items() if image in self.coord]
+        self.listbox.delete(0, tk.END)
+        for image in filtered_images:
+            self.listbox.insert(tk.END, image)
+        self.filter_popup.destroy()
+
+    def filter_images_without_gps(self):
+        filtered_images = [image for image, date in self.dates.items() if image not in self.coord]
+        self.listbox.delete(0, tk.END)
+        for image in filtered_images:
+            self.listbox.insert(tk.END, image)
+        self.filter_popup.destroy()
+
+    def create_gps_filter_popup(self):
+        self.filter_popup = tk.Toplevel(self.root)
+        self.filter_popup.title("Filter by GPS Tags")
+
+        self.filter_button_frame = tk.Frame(self.filter_popup)
+        self.filter_button_frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+
+        self.filter_with_gps_button = tk.Button(self.filter_button_frame, text="With GPS Tag", command=self.filter_images_with_gps)
+        self.filter_with_gps_button.grid(row=0, column=0, padx=5, pady=5)
+
+        self.filter_without_gps_button = tk.Button(self.filter_button_frame, text="Without GPS Tag", command=self.filter_images_without_gps)
+        self.filter_without_gps_button.grid(row=0, column=1, padx=5, pady=5)
 
     def location_filter(self):
         unique_city = set(self.states.values())
@@ -206,11 +280,19 @@ class FourFrameGUI:
             selected_image = self.listbox.get(selected_index[0])
             image_path = os.path.join(self.folder_path, selected_image)
             self.display_image(image_path)
-            self.address_label.config(text=self.address[selected_image])
-            coords = self.coord[selected_image]
-            self.right_frame.set_position(coords[0], coords[1])
-            self.right_frame.set_zoom(16)
-            self.update_properties(self.exifdata[selected_image])
+            if selected_image in self.coord:
+                self.address_label.config(text=self.address[selected_image])
+                coords = self.coord[selected_image]
+                self.right_frame.set_position(coords[0], coords[1])
+                self.right_frame.set_zoom(16)
+            else:
+                self.address_label.config(text="")
+            if selected_image in self.exifdata:
+                self.update_properties(self.exifdata[selected_image])
+            else:
+                for widget in self.scrollable_frame.winfo_children():
+                    widget.destroy()
+
 
     def show_image_popup(self, image_path):
         image = Image.open(image_path)
@@ -228,7 +310,6 @@ class FourFrameGUI:
         label.photo = photo
         label.pack(fill='both', expand=True)
         label.bind("<Button-1>", lambda event: self.show_image_popup(image_path))
-
 
     def filter_images(self):
         def apply_filter():
